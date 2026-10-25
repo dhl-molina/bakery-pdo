@@ -43,21 +43,22 @@ Each order belongs to exactly one customer, while a customer can place any numbe
 
 ## Folder Structure
 
-```bakery-pdo/
-    ├── assets/
-    │   └── style.css
-    ├── database/
-    │   └── schema.sql
-    ├── includes/
-    │   ├── db.php
-    │   ├── header.php
-    │   └── footer.php
-    ├── index.php            (customers: list + insert)
-    ├── customer_edit.php    (customers: update)
-    ├── customer_delete.php  (customers: delete)
-    ├── orders.php           (orders: list + insert)
-    ├── order_edit.php       (orders: update)
-    └── order_delete.php     (orders: delete)
+```
+bakery-pdo/
+├── assets/
+│   └── style.css
+├── database/
+│   └── schema.sql
+├── includes/
+│   ├── db.php
+│   ├── header.php
+│   └── footer.php
+├── index.php            (customers: list + insert)
+├── customer_edit.php    (customers: update)
+├── customer_delete.php  (customers: delete)
+├── orders.php           (orders: list + insert)
+├── order_edit.php       (orders: update)
+└── order_delete.php     (orders: delete)
 ```
 
 ## Database Schema
