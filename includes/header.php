@@ -12,7 +12,8 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;600&family=Young+Serif&display=swap">
-    <link rel="stylesheet" href="assets/style.css">
+    <!-- ?v=<file time> makes the browser reload the CSS whenever the file changes -->
+    <link rel="stylesheet" href="assets/style.css?v=<?= filemtime(__DIR__ . '/../assets/style.css') ?>">
 </head>
 <body>
 <div class="awning" aria-hidden="true"></div>
