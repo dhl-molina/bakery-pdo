@@ -10,6 +10,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $id = (int)($_GET['id'] ?? 0);
     $stmt = $pdo->prepare('DELETE FROM customers WHERE customer_id = ?');
     $stmt->execute([$id]);
+    if ($stmt->rowCount() > 0) {
+        flash('Customer and their orders deleted.');
+    } else {
+        flash('That customer no longer exists.', 'error');
+    }
 }
-header('Location: index.php');
+header('Location: ' . back_url('index.php'));   // back to the same search results
 exit;
