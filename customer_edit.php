@@ -5,20 +5,22 @@ require 'includes/auth.php';
 require_login();
 
 $id = (int)($_GET['id'] ?? 0);
+$back = back_url('index.php');         // where to return (the search results the user came from)
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     csrf_check();
-    // updated_by = the logged-in user, last_updated = right now
+    // last_updated_by = the logged-in user, last_updated = right now
     $stmt = $pdo->prepare(
         'UPDATE customers
-         SET full_name = ?, phone = ?, email = ?, updated_by = ?, last_updated = CURRENT_TIMESTAMP
+         SET full_name = ?, phone = ?, email = ?, last_updated_by = ?, last_updated = CURRENT_TIMESTAMP
          WHERE customer_id = ?'
     );
     $stmt->execute([
         trim($_POST['full_name']), trim($_POST['phone']), trim($_POST['email']),
         current_user_id(), $id,
     ]);
-    header('Location: index.php');
+    flash('Customer updated.');
+    header('Location: ' . $back);
     exit;
 }
 
@@ -29,7 +31,7 @@ if (!$c) { die('Customer not found.'); }
 
 include 'includes/header.php';
 ?>
-<a class="back" href="index.php">&larr; All customers</a>
+<a class="back" href="<?= e($back) ?>">&larr; Back to customers</a>
 <h2>Edit customer</h2>
 <form method="post" class="panel">
     <?= csrf_field() ?>
