@@ -7,8 +7,9 @@ A small PHP + MySQL web application for a bakery that demonstrates a **one to ma
 |---------|------------|
 | [v1](#version-1-one-to-many-with-pdo) | One to many with PDO: customers and orders (CRUD, no login) |
 | [v2](#version-2-users-login-and-who-did-it-tracking) | v1 + users (register, login, logout) + `added_by` / `updated_by` / `last_updated` tracking |
+| [v3](#version-3-search) | v2 + search on customers and orders, `date_added`, and response messages |
 
-The files in this repository are **v2**. v1 is the code as of commit `c3159db`.
+The files in this repository are **v3**. v2 is the code as of commit `9da23f9`, and v1 is the code as of commit `c3159db`.
 
 ---
 
@@ -137,7 +138,7 @@ bakery-pdo/
 #### Changed
 
 | File | Change from v1 |
-| ------ | ---------------- |
+|------|----------------|
 | `database/schema.sql` | Creates `users` first; `customers` and `orders` get the three tracking columns |
 | `includes/header.php` | Shows the navigation, user name and Log out button only when logged in; adds the awning, the font links and a viewport meta tag |
 | `index.php` | Requires login; inserts save `added_by` / `updated_by`; the query now `LEFT JOIN`s `users`; input is trimmed |
@@ -147,6 +148,100 @@ bakery-pdo/
 | `assets/style.css` | Rewritten: new palette (blueberry accent), Young Serif + Public Sans, bakery-awning header, labelled form rows, tidier tables that stack on phones, visible keyboard focus |
 | All pages | Output is escaped with the `e()` helper (`htmlspecialchars` with quotes escaped) |
 | All pages with forms or tables | Cleaner HTML: every field has a visible label, tables use `thead`/`tbody`, empty tables show a short message, dates read like "Nov 5, 2026", buttons use sentence case ("Add customer", "Log out") |
+
+---
+
+## Version 3: Search
+
+v3 lets users **search for a customer or an order, then update or delete the record they found**. After the edit or delete, the user returns to the same search results with a response message such as "Customer updated."
+
+### Features
+
+- **Search customers** (Customers page): type any part of a name, phone, email, customer ID or date added (for example `2026-11-16`)
+- **Search orders** (Orders page): type any part of an item, customer name, price, pickup date, order ID or date added
+  - With a customer selected (`orders.php?customer_id=3`), the search stays inside that customer's orders
+  - With the **Orders** link in the header, the search covers the orders of every customer
+- **Search, then update or delete:** every result row has Edit and Delete. Afterwards you land back on the same results
+- **Response messages** after add, update and delete ("Order updated.", "Customer and their orders deleted.")
+- **`date_added`** on customers and orders: the timestamp of when the record was created, saved automatically by the database
+- Search results are shown with a count ("2 customers match ...") and a clear message when nothing matches
+
+Tracking columns on `customers` and `orders` (v3 names):
+
+| Column            | Meaning                                              |
+|-------------------|------------------------------------------------------|
+| `date_added`      | Timestamp of when the record was created             |
+| `added_by`        | `user_id` of the user who created the record         |
+| `last_updated`    | Timestamp of the last change                         |
+| `last_updated_by` | `user_id` of the user who last changed the record    |
+
+### Setup
+
+**New install:** run `database/schema.sql` in phpMyAdmin, then open `http://localhost/bakery-pdo/` and register (same as v2).
+
+**Upgrading a v2 database (keeps your data):** run `database/migration_v3.sql` in phpMyAdmin. It adds `date_added` and renames `updated_by` to `last_updated_by`. Records that already exist get the time you ran the script as their `date_added`.
+
+**Upgrading a v1 database:** run `database/migration.sql` first, then `database/migration_v3.sql`.
+
+After copying the new files, press **Ctrl+Shift+R** once so the browser loads the new stylesheet.
+
+### Folder structure
+
+```
+bakery-pdo/
+├── assets/
+│   └── style.css
+├── database/
+│   ├── schema.sql
+│   ├── migration.sql        (v1 -> v2)
+│   └── migration_v3.sql     (v2 -> v3)
+├── includes/
+│   ├── db.php
+│   ├── auth.php             (session, login guard, CSRF, response messages, search helpers)
+│   ├── header.php
+│   └── footer.php
+├── register.php
+├── login.php
+├── logout.php
+├── index.php                (customers: search + list + insert)
+├── customer_edit.php
+├── customer_delete.php
+├── orders.php               (orders: search + list + insert; one customer or all)
+├── order_edit.php
+└── order_delete.php
+```
+
+### What changed from v2
+
+#### Removed
+
+- **The column name `updated_by`.** It is now `last_updated_by` on both tables (same meaning, new name). Anything of your own that reads `updated_by` must use the new name.
+- **Fixed return pages after edit and delete.** In v2, editing or deleting always returned to the full customers list or to that customer's orders. In v3 it returns to the page you came from, including your search.
+- **The `customer_id` link parameter on `order_delete.php`.** It is no longer needed because the page returns using the `back` parameter.
+- Nothing else was removed. Registration, login, logout, the page guard and all CRUD work as in v2.
+
+#### Newly added
+
+- **Search** on customers and on orders (a GET form with a `LIKE` query over several columns, using a prepared statement)
+- **All-orders view** (`orders.php` without a customer) and an **Orders** link in the header
+- **`date_added`** column on `customers` and `orders`, shown in the "Added" column together with the user who added the record
+- **Response messages** (`flash()` in `includes/auth.php`), shown once on the next page
+- **Return-to-results** after update or delete (`back` parameter, accepted only for `index.php` and `orders.php` addresses)
+- **`database/migration_v3.sql`**
+- Search form, result count and no-match styling in `assets/style.css`
+
+#### Changed
+
+| File | Change from v2 |
+|------|----------------|
+| `database/schema.sql` | `customers` and `orders` get `date_added`; `updated_by` is renamed `last_updated_by` |
+| `index.php` | Search form and query; "Added" column shows user and `date_added`; insert and edit use `last_updated_by`; shows a response after adding |
+| `orders.php` | Works for one customer or for all customers; search form and query; Customer column in the all-orders view; the add-order form only shows when a customer is selected |
+| `customer_edit.php`, `order_edit.php` | Save `last_updated_by`; show a response; return to the page you came from |
+| `customer_delete.php`, `order_delete.php` | Show a response (and a friendly message if the record is already gone); return to the page you came from |
+| `includes/auth.php` | New helpers: `flash()`, `flash_get()`, `like()`, `back_url()`, `back_param()` |
+| `includes/header.php` | Orders link and the response message area |
+| `assets/style.css` | Search styles; page width increased from 1040px to 1160px; action buttons wrap instead of overflowing |
 
 ## Author
 
