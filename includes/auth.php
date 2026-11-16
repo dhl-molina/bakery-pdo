@@ -23,7 +23,7 @@ function require_login(): void
     }
 }
 
-// The id of the logged-in user. It is saved in added_by / updated_by.
+// The id of the logged-in user. It is saved in added_by / last_updated_by.
 function current_user_id(): ?int
 {
     return $_SESSION['user_id'] ?? null;
@@ -51,6 +51,48 @@ function fmt_date(?string $date): string
 function fmt_datetime(?string $ts): string
 {
     return $ts ? date('M j, Y, g:i A', strtotime($ts)) : '—';
+}
+
+// --- Responses (flash messages), as in the "returning a response" lesson ---
+// Save a message in the session, then redirect. The next page shows it once and removes it.
+function flash(string $text, string $type = 'success'): void
+{
+    $_SESSION['flash'] = ['text' => $text, 'type' => $type];
+}
+
+// Returns the saved message (and forgets it) or null. Called by includes/header.php.
+function flash_get(): ?array
+{
+    $f = $_SESSION['flash'] ?? null;
+    unset($_SESSION['flash']);
+    return $f;
+}
+
+// --- Searching ---
+// Turns what the user typed into a LIKE pattern: "mar" -> "%mar%".
+// % and _ typed by the user are escaped so they are searched literally.
+function like(string $text): string
+{
+    return '%' . addcslashes($text, '\\%_') . '%';
+}
+
+// --- Going back to the search results after an edit or delete ---
+// A list page adds "&back=<its own address>" to its Edit/Delete links.
+// Only index.php / orders.php addresses are accepted, so nobody can use it to redirect elsewhere.
+function back_url(string $default): string
+{
+    $back = $_GET['back'] ?? '';
+    return preg_match('/^(index|orders)\.php(\?[A-Za-z0-9_=&%+.\-]*)?$/', $back) ? $back : $default;
+}
+
+// The address of the current list page (with its search), url-encoded for a link.
+function back_param(): string
+{
+    $here = basename($_SERVER['PHP_SELF']);
+    if (($_SERVER['QUERY_STRING'] ?? '') !== '') {
+        $here .= '?' . $_SERVER['QUERY_STRING'];
+    }
+    return urlencode($here);
 }
 
 // --- CSRF protection: every POST form carries a secret token ---
