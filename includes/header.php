@@ -22,6 +22,7 @@
     <nav class="site-nav" aria-label="Main">
         <?php if (is_logged_in()): ?>
             <a href="index.php">Customers</a>
+            <a href="orders.php">Orders</a>
             <span class="who">Logged in as <strong><?= e($_SESSION['user_name']) ?></strong></span>
             <form method="post" action="logout.php" class="inline">
                 <?= csrf_field() ?>
@@ -31,3 +32,7 @@
     </nav>
 </header>
 <main>
+<?php // The response from the last action ("Customer updated.") is shown once ?>
+<?php if (is_logged_in() && ($flash = flash_get())): ?>
+    <p class="alert <?= e($flash['type']) ?>" role="status"><?= e($flash['text']) ?></p>
+<?php endif; ?>
