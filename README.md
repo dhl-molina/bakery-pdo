@@ -8,8 +8,9 @@ A small PHP + MySQL web application for a bakery that demonstrates a **one to ma
 | [v1](#version-1-one-to-many-with-pdo) | One to many with PDO: customers and orders (CRUD, no login) |
 | [v2](#version-2-users-login-and-who-did-it-tracking) | v1 + users (register, login, logout) + `added_by` / `updated_by` / `last_updated` tracking |
 | [v3](#version-3-search) | v2 + search on customers and orders, `date_added`, and response messages |
+| [v4](#version-4-recycle-bin-and-order-images) | v3 + a recycle bin for deleted orders (who deleted, when, restore) and one image per order |
 
-The files in this repository are **v3**. v2 is the code as of commit `9da23f9`, and v1 is the code as of commit `c3159db`.
+The files in this repository are **v4**. v3 is the code as of commit `e70fa2d`, v2 is the code as of commit `9da23f9`, and v1 is the code as of commit `c3159db`.
 
 ---
 
@@ -242,6 +243,108 @@ bakery-pdo/
 | `includes/auth.php` | New helpers: `flash()`, `flash_get()`, `like()`, `back_url()`, `back_param()` |
 | `includes/header.php` | Orders link and the response message area |
 | `assets/style.css` | Search styles; page width increased from 1040px to 1160px; action buttons wrap instead of overflowing |
+
+---
+
+## Version 4: Recycle Bin and Order Images
+
+v4 changes what "delete" means for an order and lets each order carry a picture.
+
+- **Recycle bin:** deleting an order moves it to the recycle bin instead of erasing it. The bin shows **who deleted it and when**, and each order can be **restored** or **deleted for good**.
+- **One image per order:** attach a JPG, PNG, GIF or WebP image (up to 2 MB) when adding an order, and replace it when editing. The image shows as a thumbnail in the orders table and in the recycle bin.
+
+### Features
+
+- Delete on the Orders page asks "Move this order to the recycle bin?" and records `deleted_at` (when) and `deleted_by` (who)
+- **Recycle bin** page (`recycle_bin.php`, link in the header): customer, image, item, quantity, price, pickup, **Deleted by**, **Deleted on**, plus Restore and Delete for good
+- **Restore** puts the order back in its customer's orders with its image. The restore counts as the latest update, so `last_updated_by` becomes the user who restored it
+- **Delete for good** removes the row and its image file. It only works on orders that are already in the bin
+- Orders in the bin are hidden from the customer's orders, the all-orders view, search results and the order counts on the Customers page, and they cannot be edited until restored
+- Deleting a **customer** still removes the customer and all their orders for good, including orders in the bin and their image files
+- Images are checked before they are saved: the file must be a real image, 2 MB at most, and it is stored under a random name in `uploads/orders/`. Anything else is refused with a message and no order is created
+
+New columns on `orders`:
+
+| Column       | Meaning                                                          |
+|--------------|------------------------------------------------------------------|
+| `image_path` | Path of the order's image, for example `uploads/orders/3f9c....jpg` (empty if none) |
+| `deleted_at` | When the order was moved to the recycle bin (`NULL` = not deleted) |
+| `deleted_by` | `user_id` of the user who moved it to the recycle bin            |
+
+### Setup
+
+**New install:** run `database/schema.sql`, then register as before.
+
+**Upgrading a v3 database (keeps your data):** run `database/migration_v4.sql` in phpMyAdmin. Existing orders stay active and have no image yet.
+
+**Upgrading an older database:** run the migrations in order: `migration.sql` (v1 to v2), `migration_v3.sql`, then `migration_v4.sql`.
+
+The `uploads/orders/` folder must be writable by the web server. On XAMPP for Windows this works by default. After copying the new files, press **Ctrl+Shift+R** once so the browser loads the new stylesheet.
+
+If an upload is refused because of its size, PHP's limits (`upload_max_filesize` and `post_max_size` in `php.ini`) may be lower than your file. The app limit is 2 MB.
+
+### Folder structure
+
+```
+bakery-pdo/
+├── assets/
+│   └── style.css
+├── database/
+│   ├── schema.sql
+│   ├── migration.sql        (v1 -> v2)
+│   ├── migration_v3.sql     (v2 -> v3)
+│   └── migration_v4.sql     (v3 -> v4)
+├── includes/
+│   ├── db.php
+│   ├── auth.php
+│   ├── upload.php           (image validation, saving and cleanup)
+│   ├── header.php
+│   └── footer.php
+├── uploads/
+│   ├── .htaccess            (never run scripts from this folder)
+│   └── orders/              (the uploaded images; created automatically)
+├── register.php
+├── login.php
+├── logout.php
+├── index.php
+├── customer_edit.php
+├── customer_delete.php
+├── orders.php
+├── order_edit.php
+├── order_delete.php         (moves an order to the recycle bin)
+├── order_restore.php        (takes an order out of the bin)
+├── order_purge.php          (deletes an order for good)
+└── recycle_bin.php
+```
+
+### What changed from v3
+
+#### Removed
+
+- **Deleting an order for good from the Orders page.** The Delete button on an order now moves it to the recycle bin. Permanent deletion is only available from the recycle bin ("Delete for good").
+- Nothing else was removed. Customers, search, login and the rest work as in v3.
+
+#### Newly added
+
+- **Columns** `image_path`, `deleted_at` and `deleted_by` on `orders` (`deleted_by` is a foreign key to `users`)
+- **Files:** `recycle_bin.php`, `order_restore.php`, `order_purge.php`, `includes/upload.php`, `database/migration_v4.sql`, `uploads/.htaccess`, `.gitignore`
+- **Recycle bin** link in the header
+- **Image** field on the add-order and edit-order forms, and an **Image** column with thumbnails in the orders table
+- Styles for thumbnails, the file field and the image preview
+
+#### Changed
+
+| File | Change from v3 |
+|------|----------------|
+| `database/schema.sql` | `orders` gets `image_path`, `deleted_at`, `deleted_by` |
+| `orders.php` | Lists only active orders; the add-order form accepts an image (`multipart/form-data`); new Image column; delete confirmation mentions the recycle bin |
+| `order_edit.php` | Shows the current image; a new image replaces it and the old file is removed; deleted orders cannot be opened |
+| `order_delete.php` | Marks the order as deleted (`deleted_at`, `deleted_by`) instead of removing the row; it does not change `last_updated` |
+| `index.php` | The Orders count on each customer only counts active orders |
+| `customer_delete.php` | Also removes the image files of the customer's orders |
+| `includes/header.php` | Recycle bin link |
+| `assets/style.css` | Thumbnail and file-field styles; no-wrap for names and dates in tables |
+| `.gitignore` | New: uploaded images are not committed (the empty `uploads/orders/` folder is) |
 
 ## Author
 
