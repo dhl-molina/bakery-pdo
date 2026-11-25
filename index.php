@@ -27,7 +27,7 @@ $sql = 'SELECT c.*, COUNT(o.order_id) AS total_orders,
                a.first_name AS add_first, a.last_name AS add_last,
                u.first_name AS upd_first, u.last_name AS upd_last
         FROM customers c
-        LEFT JOIN orders o ON o.customer_id = c.customer_id
+        LEFT JOIN orders o ON o.customer_id = c.customer_id AND o.deleted_at IS NULL
         LEFT JOIN users  a ON a.user_id = c.added_by
         LEFT JOIN users  u ON u.user_id = c.last_updated_by';
 $params = [];
