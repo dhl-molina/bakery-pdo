@@ -23,6 +23,7 @@
         <?php if (is_logged_in()): ?>
             <a href="index.php">Customers</a>
             <a href="orders.php">Orders</a>
+            <a href="recycle_bin.php">Recycle bin</a>
             <span class="who">Logged in as <strong><?= e($_SESSION['user_name']) ?></strong></span>
             <form method="post" action="logout.php" class="inline">
                 <?= csrf_field() ?>
