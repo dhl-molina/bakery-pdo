@@ -4,6 +4,7 @@
 //   orders.php                -> ALL orders of every customer (search across everything)
 require 'includes/db.php';
 require 'includes/auth.php';
+require 'includes/upload.php';
 require_login();
 
 $cid = (int)($_GET['customer_id'] ?? 0);
@@ -17,17 +18,30 @@ if ($cid > 0) {
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    if (post_too_large()) {            // the image was bigger than the server allows
+        flash('That image is too large. The limit is 2 MB.', 'error');
+        header('Location: ' . $_SERVER['REQUEST_URI']);
+        exit;
+    }
     csrf_check();
     if (!$customer) { http_response_code(400); die('Open a customer first to add an order.'); }
 
+    // ONE image per order (optional): validate it and save the file before the INSERT
+    [$imagePath, $imageError] = save_order_image($_FILES['image'] ?? null);
+    if ($imageError) {
+        flash($imageError, 'error');
+        header("Location: orders.php?customer_id=$cid");
+        exit;
+    }
+
     // date_added fills itself; added_by / last_updated_by record WHO did it
     $stmt = $pdo->prepare(
-        'INSERT INTO orders (customer_id, item_name, quantity, price, pickup_date, added_by, last_updated_by)
-         VALUES (?, ?, ?, ?, ?, ?, ?)'
+        'INSERT INTO orders (customer_id, item_name, quantity, price, pickup_date, image_path, added_by, last_updated_by)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
     );
     $stmt->execute([
         $cid, trim($_POST['item_name']), (int)$_POST['quantity'], $_POST['price'], $_POST['pickup_date'],
-        current_user_id(), current_user_id(),
+        $imagePath, current_user_id(), current_user_id(),
     ]);
     flash('Order added.');
     header("Location: orders.php?customer_id=$cid");
@@ -44,7 +58,7 @@ $sql = 'SELECT o.*, c.full_name AS customer_name,
         INNER JOIN customers c ON c.customer_id = o.customer_id
         LEFT JOIN users a ON a.user_id = o.added_by
         LEFT JOIN users u ON u.user_id = o.last_updated_by';
-$where = [];
+$where = ['o.deleted_at IS NULL'];   // orders in the recycle bin are not listed here
 $params = [];
 
 if ($customer) {                       // only this customer's orders
@@ -97,7 +111,7 @@ include 'includes/header.php';
 <?php endif; ?>
 
 <?php if ($customer): ?>
-<form method="post" class="panel">
+<form method="post" enctype="multipart/form-data" class="panel">
     <?= csrf_field() ?>
     <h3>Add an order</h3>
     <div class="form-row">
@@ -112,6 +126,9 @@ include 'includes/header.php';
         </label>
         <label><span>Pickup date</span>
             <input type="date" name="pickup_date" required>
+        </label>
+        <label><span>Image <span class="hint">(optional, max 2 MB)</span></span>
+            <input type="file" name="image" accept="image/jpeg,image/png,image/gif,image/webp">
         </label>
         <button type="submit">Add order</button>
     </div>
@@ -135,7 +152,7 @@ include 'includes/header.php';
         <tr>
             <th>ID</th>
             <?php if (!$customer): ?><th>Customer</th><?php endif; ?>
-            <th>Item</th><th class="num">Qty</th><th class="num">Price</th><th>Pickup</th>
+            <th>Image</th><th>Item</th><th class="num">Qty</th><th class="num">Price</th><th>Pickup</th>
             <th>Added</th><th>Last updated</th><th><span class="sr">Actions</span></th>
         </tr>
     </thead>
@@ -148,6 +165,13 @@ include 'includes/header.php';
                     <a href="orders.php?customer_id=<?= $o['customer_id'] ?>"><?= e($o['customer_name']) ?></a>
                 </td>
             <?php endif; ?>
+            <td data-label="Image">
+                <?php if ($o['image_path']): ?>
+                    <a href="<?= e($o['image_path']) ?>" target="_blank" rel="noopener">
+                        <img class="thumb" src="<?= e($o['image_path']) ?>" alt="Photo of <?= e($o['item_name']) ?>">
+                    </a>
+                <?php else: ?>—<?php endif; ?>
+            </td>
             <td data-label="Item"><?= e($o['item_name']) ?></td>
             <td data-label="Qty" class="num"><?= $o['quantity'] ?></td>
             <td data-label="Price" class="num">&#8369;<?= number_format($o['price'], 2) ?></td>
@@ -160,7 +184,7 @@ include 'includes/header.php';
                 <div class="actions">
                     <a class="btn ghost" href="order_edit.php?id=<?= $o['order_id'] ?>&back=<?= $back ?>">Edit</a>
                     <form method="post" action="order_delete.php?id=<?= $o['order_id'] ?>&back=<?= $back ?>" class="inline"
-                          onsubmit="return confirm('Delete this order?')">
+                          onsubmit="return confirm('Move this order to the recycle bin?')">
                         <?= csrf_field() ?>
                         <button type="submit" class="danger">Delete</button>
                     </form>
